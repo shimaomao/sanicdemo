@@ -1,19 +1,18 @@
 route_config = {
-    'mail': {
-        'database': {
+    'excel': {
             'host': '127.0.0.1',
             'port': '',
+            'exchange': 'excel_exchange',
+            'type': 'direct',
+            'queue': 'excel_queue',
+            'binding_key': 'excel'
+            }
+}
+
+database_config = {
+            'host': '127.0.0.1',
+            'port': '5432',
             'user': '',
             'password': '',
-            'db': '',
-        },
-        'rabbitmq': {
-            'host': '127.0.0.1',
-            'port': '',
-            'exchange': 'mail',
-            'type': 'fanout',
-            'queue': 'msg_center_queue',
-            'binding_key': ''
-        }
-    }
+            'db_name': 'Message',
 }
