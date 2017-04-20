@@ -129,9 +129,12 @@ def r_cache(key=None, identification=None, time=None, company_code=None):
     def _deco(func):
 
         async def wrapper(*args, **kwargs):
-            str_name = 'redis_model_cache_' + company_code + '_'
             model = args[0]
             async with model.env.redis_pool.get() as conn:
+                if company_code is None:
+                    str_name = 'redis_model_cache_' + model.env.company_code + '_'
+                else:
+                    str_name = 'redis_model_cache_' + company_code + '_'
                 if key and isinstance(model, BaseModel):
                     str_name += str(key)
                     if id and isinstance(identification, int):

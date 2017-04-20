@@ -2,7 +2,7 @@ db_config = dict({
     'port': 6625,
     'host': '127.0.0.1',
     'database': 'salary',
-    'user': 'Py',
+    'user': 'panyang',
     'password':'',
 
 })
@@ -30,3 +30,13 @@ redis_config = dict({
 })
 
 base_config = {}
+route_config = {
+    'excel': {
+            'host': '127.0.0.1',
+            'port': '',
+            'exchange': 'excel_exchange',
+            'type': 'direct',
+            'queue': 'excel_queue',
+            'binding_key': 'excel'
+            }
+}

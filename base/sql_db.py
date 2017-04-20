@@ -22,17 +22,26 @@ class PostgresDb:
         self.dicConfig = {}
         self.pool = db_pool
 
-    @staticmethod
-    async def create_pool():
-        db_host = db_config.get('host', '127.0.0.1')
-        database = db_config.get('database')
-        db_user = db_config.get('user')
-        db_pool = await create_pool(host=db_host, database=database, user=db_user)
+    async def create_pool(self, host=None, database=None, user=None,
+                          password=None):
+        if self.pool and self.pool._connect_kwargs['database'] == database:
+            return self.pool
+
+        db_host = db_config.get('host', '127.0.0.1') if not host else host
+        database = db_config.get('database') if not database else database
+        db_user = db_config.get('user') if not user else user
+        db_pwd = db_config.get('password') if not password else password
+
+        # !!! 不同的公司会切换db，使用数据库服务端连接池, 注意客户端连接池数量
+        db_pool = await create_pool(min_size=2, host=db_host,
+                                    database=database,
+                                    user=db_user, password=db_pwd)
         return db_pool
 
     async def connection(self):
         conn = await self.pool.acquire()
         return conn
+
     async def _execute(self, str_sql, connection=None):
         if not connection:
             async with self.pool.acquire() as conn:
@@ -47,6 +56,22 @@ class PostgresDb:
                 data = await conn.fetch(str_sql)
         else:
             data = await connection.fetch(str_sql)
+        return data
+
+    async def _fetchval(self, str_sql, connection=None):
+        if not connection:
+            async with self.pool.acquire() as conn:
+                data = await conn.fetchval(str_sql)
+        else:
+            data = await connection.fetchval(str_sql)
+        return data
+
+    async def _fetchrow(self, str_sql, connection=None):
+        if not connection:
+            async with self.pool.acquire() as conn:
+                data = await conn.fetchrow(str_sql)
+        else:
+            data = await connection.fetchrow(str_sql)
         return data
 
     async def find(self, str_table_name, str_type, dic_data, boo_format_data=True, connection=None):
@@ -68,12 +93,15 @@ class PostgresDb:
         str_limit = self.build_limit(dic_data['limit'])
         str_group = self.build_group(dic_data['group'])
         str_order = self.build_order(dic_data['order'])
+        str_select = self.build_select(dic_data['distinct'])
 
-        str_sql = "select %s from %s %s %s %s %s %s" % (str_fields, str_table_name, str_join, str_condition, str_group,
+        str_sql = "%s %s from %s %s %s %s %s %s" % (str_select, str_fields, str_table_name, str_join, str_condition, str_group,
                                                         str_order, str_limit)
         #print(str_sql)
-
-        data = await self._fetch(str_sql, connection=connection)
+        if str_type == 'list':
+            data = await self._fetch(str_sql, connection=connection)
+        elif str_type == 'first':
+            data = await self._fetchrow(str_sql, connection=connection)
         return data
 
     async def insert(self, str_table_name, dic_data, connection=None):
@@ -87,7 +115,7 @@ class PostgresDb:
 
         str_sql = "insert into %s (%s) values (%s) RETURNING id" % (str_table_name, dic_data['key'], dic_data['val'])
         # print str_sql
-        data = await self._execute(str_sql, connection=connection)
+        data = await self._fetchval(str_sql, connection=connection)
         return data
 
     async def update(self, str_table_name, dic_data, connection=None):
@@ -133,6 +161,7 @@ class PostgresDb:
         dic_data['order'] = dic_data['order'] if 'order' in dic_data else ''
         dic_data['group'] = dic_data['group'] if 'group' in dic_data else ''
         dic_data['limit'] = dic_data['limit'] if 'limit' in dic_data else ''
+        dic_data['distinct'] = dic_data['distinct'] if 'distinct' in dic_data else False
         if 'key' in dic_data:
             if isinstance(dic_data['key'], list):
                 dic_data['key'] = ','.join(dic_data['key'])
@@ -201,4 +230,13 @@ class PostgresDb:
         """
         str_limit = ','.join(lis_limit) if lis_limit else ''
         return 'limit ' + str_limit if str_limit else ''
+
+    def build_select(self, distinct):
+        """构建 select
+        
+        :param distinct: bool 是否包括 DISTINCT
+        :return: str
+        """
+        return 'select distinct' if distinct else 'select'
+
 

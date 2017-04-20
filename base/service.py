@@ -1,10 +1,8 @@
-from model import SalaryModel
-
-
+from structure.model import SalaryModel
 from .environment import Environment
 
 
-all_model = {'salary': SalaryModel}
+all_model = {'salary':SalaryModel}
 
 
 class ModelDict(dict):

@@ -1,12 +1,19 @@
 from collections import namedtuple
 from inspect import isawaitable
 from sanic.request import Request
-setup = namedtuple('setup', ['identification', 'session', 'lang'])
+from config import db_config
+from aiohttp import client
+
+try:
+    import ujson as json
+except:
+    import json
+setup = namedtuple('setup', ['identification', 'session', 'lang', 'db'])
 
 
 class BaseHandler:
 
-    setuper = setup(True, True, True)
+    setuper = setup(False, False, False, False)
 
     def __init__(self, req, env):
         self.request = req
@@ -65,7 +72,7 @@ class BaseHandler:
 
 class MjsonHandler(BaseHandler):
 
-    setuper = setup(True, True, True)
+    setuper = setup(True, True, True, True)
 
     def setup_identification(self):
         assert isinstance(self.request, Request)
@@ -87,3 +94,44 @@ class MjsonHandler(BaseHandler):
                 self.session.context['lang'] = 'zh_CN'
             elif lang.find('en') > -1:
                 self.session.context['lang'] = 'en_US'
+
+    async def setup_db(self):
+        database = db_config.get('database')
+        db_name = self.request.headers.get('X-Company-Code', '').lower()
+
+        # 兼容config 里指定database 的模式，只有database 为空时才切换连接多数据库
+        if (not database) and db_name:
+            self.env.db.pool = await self.env.db.create_pool(database=db_name)
+
+
+class JsonHandler(BaseHandler):
+
+    async def initialize(self):
+        await super(JsonHandler, self).initialize()
+        self.data = json.loads(self.request.body)
+
+
+class RedirectHandler(object):
+
+    def __init__(self, req, env):
+        self.request = req
+        self.env = env
+        self.data = None
+
+    async def initialize(self):
+        self.request = request
+
+    async def __call__(self, *args, **kwargs):
+        await self.initialize()
+        result = self.handle(*args, **kwargs)
+        if isawaitable(result):
+            result = await result
+        if self.session:
+            await self.env.session_mgr.save(self.session)
+        if self.trans_conn:
+            await self.trans_conn.close()
+        return result
+
+    async def handle(self, *args, **kwargs):
+        raise NotImplementedError
+

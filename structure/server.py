@@ -20,7 +20,9 @@ loop = async_loop.new_event_loop()
 asyncio.set_event_loop(loop=loop)
 env = None
 
-async def init_db():
+async def init_db(*args):
+    application = args[0]
+    loop = args[1]
     db_host = db_config.get('host', '127.0.0.1')
     database = db_config.get('database')
     db_user = db_config.get('user')
@@ -34,12 +36,8 @@ async def init_db():
     redis_cache_port = redis_config['redis_cache'].get('port')
     redis_cache_db = redis_config['redis_cache'].get('db')
     redis_cache_pool = await create_redis_pool((redis_cache_host, redis_cache_port), db=redis_cache_db, loop=loop)
-    global env
-    env = Environment(loop=loop, db_pool=db_pool, redis_pool=redis_pool, redis_cache_pool=redis_cache_pool)
 
-
-loop.run_until_complete(init_db())
-
+    application.env = Environment(loop=loop, db_pool=db_pool, redis_pool=redis_pool, redis_cache_pool=redis_cache_pool)
 
 
 app = Application(route, err_route, middleware, env)
@@ -47,4 +45,4 @@ app = Application(route, err_route, middleware, env)
 
 host = server_config.get('host')
 port = server_config.get('port')
-app.run(host=host, port=port, loop=loop, debug=False)
+app.run(host=host, port=port, after_start=init_db, debug=False)

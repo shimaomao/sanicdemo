@@ -32,14 +32,17 @@ class Application(Sanic):
     def middleware(self, *args, **kwargs):
         raise NotImplementedError
 
-    def route(self, uri, methods=None):
+    def route(self, uri, methods=frozenset({'GET'}), host=None,
+              strict_slashes=False):
         raise NotImplementedError
 
-    def _route(self, uri, methods=None):
-        """
-        Decorates a function to be registered as a route
+    def _route(self, uri, methods=frozenset({'GET'}), host=None,
+               strict_slashes=False):
+        """Decorate a function to be registered as a route
+
         :param uri: path of the URL
         :param methods: list or tuple of methods allowed
+        :param host:
         :return: decorated function
         """
 
@@ -49,28 +52,46 @@ class Application(Sanic):
             uri = '/' + uri
 
         def response(handler):
-            self.router.add(uri=uri, methods=methods, handler=handler)
+            self.router.add(uri=uri, methods=methods, handler=handler,
+                            host=host, strict_slashes=strict_slashes)
             return handler
 
         return response
 
-    def _add_route(self, handler, uri, methods=None):
-        """
-        A helper method to register class instance or
+    def _add_route(self, handler, uri, methods=frozenset({'POST', 'GET'}), host=None,
+                   strict_slashes=False):
+        """A helper method to register class instance or
         functions as a handler to the application url
         routes.
+
         :param handler: function or class instance
         :param uri: path of the URL
-        :param methods: list or tuple of methods allowed
+        :param methods: list or tuple of methods allowed, these are overridden
+                        if using a HTTPMethodView
+        :param host:
         :return: function or class instance
         """
-        self._route(uri=uri, methods=methods)(handler)
+        # Handle HTTPMethodView differently
+        # if hasattr(handler, 'view_class'):
+        #     methods = set()
+        #
+        #     for method in HTTP_METHODS:
+        #         if getattr(handler.view_class, method.lower(), None):
+        #             methods.add(method)
+        #
+        # # handle composition view differently
+        # if isinstance(handler, CompositionView):
+        #     methods = handler.handlers.keys()
+
+        self._route(uri=uri, methods=methods, host=host,
+                    strict_slashes=strict_slashes)(handler)
         return handler
 
-    def add_route(self, handler, uri, methods=None):
+    def add_route(self, handler, uri, methods=frozenset({'GET'}), host=None,
+                  strict_slashes=False):
         raise NotImplementedError
 
-    async def handle_request(self, request, response_callback):
+    async def handle_request(self, request, write_callback=None, stream_callback=None):
         """
         Takes a request from the HTTP Server and returns a response object to
         be sent back The HTTP Server only expects a response object, so
@@ -157,4 +178,4 @@ class Application(Sanic):
                     response = HTTPResponse(
                         "An error occured while handling an error")
 
-        response_callback(response)
+        write_callback(response)
